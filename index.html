@@ -197,6 +197,7 @@
   let activeModuleId = 'cidp';
   let activeSectionId = 'diagnosis';
   let quizStates = {};
+  let quizRegistry = {};
 
   window.downloadMedia = async function(url, filename) {
     try {
@@ -347,9 +348,9 @@
 
     if (sectionId === 'case-david') return `
       <div class="space-y-6 max-w-4xl mx-auto slide-up">
-        ${renderCaseHeader('Case Study 3: David', 'Dose Optimization', 'David is a 60-year-old male who has been receiving maintenance IVIg therapy for 6 months.', 'D', 'bg-slate-200 text-slate-600', sectionIndex, totalSections)}
+        ${renderCaseHeader('Case Study 3: David', 'Dose Optimization', 'David is a 60-year-old male receiving maintenance IVIg therapy for 6 months and now needs objective reassessment before any treatment change.', 'D', 'bg-slate-200 text-slate-600', sectionIndex, totalSections)}
         <div class="section-card rounded-3xl p-6">
-          ${renderClinicalVideoBlock('david', 'David', 'assets/david.jpg', 'assets/david.mp4', "Clinical Observation: David wishes to discontinue therapy due to fatigue and a perceived lack of efficacy. His physician has been monitoring his progress using only subjective patient reporting.", { posterMaxClass: 'max-h-[320px] mx-auto rounded-t-xl', fallbackBadge: 'Objective reassessment needed' })}
+          ${renderClinicalVideoBlock('david', 'David', 'assets/david.jpg', 'assets/david.mp4', "Clinical Observation: David is experiencing treatment fatigue and perceives limited benefit. Before discontinuing therapy, his response should be reassessed with objective tools such as I-RODS or INCAT to support dose optimization.", { posterMaxClass: 'max-h-[320px] mx-auto rounded-t-xl', fallbackBadge: 'Objective reassessment needed' })}
         </div>
         ${renderQuizComponent('quiz-david', "What guideline-recommended step should the physician take to properly assess David's response before considering discontinuation?", ["Switch him immediately to daily corticosteroids", "Reassess using objective scales like I-RODS or INCAT to properly systematize dose titration", "Order an immediate diagnostic nerve biopsy"], 1, "Correct! Treatment efficacy is dose-dependent and requires individualized titration based on objective clinical response (using tools like INCAT or I-RODS), rather than subjective reporting which leads to high discontinuation.")}
         <div class="section-card rounded-3xl p-6 md:p-7 bg-gradient-to-r from-emerald-50 to-blue-50 border-emerald-200">
@@ -409,15 +410,17 @@
           <div class="text-sm text-slate-500 font-medium">Section ${current} of ${total}</div>
           <div class="flex items-center gap-3 flex-wrap">
             ${prev ? `<button onclick="navigateTo('${prev[0]}', '${prev[1]}')" class="text-slate-500 hover:text-blue-600 font-medium flex items-center gap-2 px-3 py-2 rounded-xl hover:bg-slate-50"><span class="material-symbols-outlined">arrow_back</span> Back</button>` : `<div></div>`}
-            ${next ? `<button onclick="navigateTo('${next[0]}', '${next[1]}')" class="bg-blue-600 text-white px-6 py-3 rounded-xl font-semibold hover:bg-blue-700 transition flex items-center gap-2 shadow-md">${nextLabel} <span class="material-symbols-outlined">arrow_forward</span></button>` : `<button class="bg-green-600 text-white px-6 py-3 rounded-xl font-semibold hover:bg-green-700 transition flex items-center gap-2 shadow-md">${nextLabel} <span class="material-symbols-outlined">check_circle</span></button>`}
+            ${next ? `<button onclick="navigateTo('${next[0]}', '${next[1]}')" class="bg-blue-600 text-white px-6 py-3 rounded-xl font-semibold hover:bg-blue-700 transition flex items-center gap-2 shadow-md">${nextLabel} <span class="material-symbols-outlined">arrow_forward</span></button>` : `<button onclick="completeModule()" class="bg-green-600 text-white px-6 py-3 rounded-xl font-semibold hover:bg-green-700 transition flex items-center gap-2 shadow-md">${nextLabel} <span class="material-symbols-outlined">check_circle</span></button>`}
           </div>
         </div>
       </div>`;
   }
 
   function renderQuizComponent(id, question, options, correctIndex, explanation) {
+    quizRegistry[id] = { question, options, correctIndex, explanation };
     const state = quizStates[id] || { submitted: false, selected: null };
     const isCorrect = state.selected === correctIndex;
+    const cleanExplanation = String(explanation || '').replace(/^Correct!\s*/i, '');
     let optionsHtml = options.map((opt, idx) => {
       let style = `bg-white border-slate-200 ${hoverClassMap.blue}`;
       let icon = '<div class="w-5 h-5 rounded-full border border-slate-300"></div>';
@@ -440,7 +443,7 @@
       return `<div ${clickAttr} class="choice-card p-4 rounded-2xl border cursor-pointer transition-all duration-200 flex items-center gap-3 mb-3 ${style}">${icon}<span class="text-sm ${state.submitted && idx === correctIndex ? 'font-bold text-green-900' : 'text-slate-700'}">${opt}</span></div>`;
     }).join('');
     
-    let feedback = state.submitted ? `<div class="mt-6 p-4 rounded-2xl ${isCorrect ? "bg-green-100 text-green-900 border border-green-200" : "bg-red-50 text-red-900 border border-red-200"} animate-in fade-in"><div class="flex items-center gap-2 font-bold mb-2"><span class="material-symbols-outlined">${isCorrect ? "check_circle" : "cancel"}</span>${isCorrect ? "Correct!" : "Incorrect"}</div><p class="text-sm leading-relaxed">${explanation}</p></div>` : `<button onclick="submitQuiz('${id}', ${correctIndex})" class="mt-4 w-full py-3 rounded-xl font-bold transition-all text-white ${state.selected !== null ? `bg-blue-600 hover:bg-blue-700 shadow-md` : 'bg-slate-200 text-slate-400 cursor-not-allowed'}" ${state.selected === null ? 'disabled' : ''}>Submit Answer</button>`;
+    let feedback = state.submitted ? `<div class="mt-6 p-4 rounded-2xl ${isCorrect ? "bg-green-100 text-green-900 border border-green-200" : "bg-red-50 text-red-900 border border-red-200"} animate-in fade-in"><div class="flex items-center gap-2 font-bold mb-2"><span class="material-symbols-outlined">${isCorrect ? "check_circle" : "cancel"}</span>${isCorrect ? "Correct!" : "Incorrect"}</div><p class="text-sm leading-relaxed">${cleanExplanation}</p></div>` : `<button onclick="submitQuiz('${id}', ${correctIndex})" class="mt-4 w-full py-3 rounded-xl font-bold transition-all text-white ${state.selected !== null ? `bg-blue-600 hover:bg-blue-700 shadow-md` : 'bg-slate-200 text-slate-400 cursor-not-allowed'}" ${state.selected === null ? 'disabled' : ''}>Submit Answer</button>`;
     
     return `<div class="section-card rounded-3xl p-6 md:p-7 my-6 scale-in" id="${id}"><div class="flex flex-wrap items-center gap-2 mb-4"><span class="bg-blue-100 text-blue-700 text-xs px-2.5 py-1 rounded-full uppercase tracking-[0.18em] font-bold">Knowledge Check</span><div class="soft-divider flex-1 min-w-[60px]"></div></div><h3 class="font-semibold text-slate-900 mb-4 text-lg leading-snug">${question}</h3><div>${optionsHtml}</div>${feedback}</div>`;
   }
@@ -620,14 +623,25 @@
     container.innerHTML = html;
   }
 
-  function renderMainContent() {
+  function renderMainContent(options = {}) {
     const module = appData.modules[activeModuleId];
     const section = module.sections.find(s => s.id === activeSectionId);
+    const contentContainer = document.getElementById('main-content');
+    const preserveScroll = options && options.preserveScroll === true;
+    const previousScrollTop = contentContainer ? contentContainer.scrollTop : 0;
+
     document.getElementById('breadcrumb-module').textContent = module.title;
     document.getElementById('breadcrumb-section').textContent = section.title;
-    const contentContainer = document.getElementById('main-content');
     contentContainer.innerHTML = getSectionContent(activeModuleId, activeSectionId);
-    contentContainer.scrollTop = 0;
+
+    if (preserveScroll) {
+      requestAnimationFrame(() => {
+        contentContainer.scrollTop = previousScrollTop;
+      });
+    } else {
+      contentContainer.scrollTop = 0;
+    }
+
     renderSidebar();
     updateProgressUI();
     initClinicalVideos();
@@ -654,17 +668,82 @@
     }
   }
   
-  window.selectQuizOption = function(qid, idx) {
-    if (!quizStates[qid]) quizStates[qid] = { submitted: false };
-    quizStates[qid].selected = idx;
-    renderMainContent();
+  function refreshQuizCard(qid) {
+    const card = document.getElementById(qid);
+    const config = quizRegistry[qid];
+    if (!card || !config) return;
+
+    const contentContainer = document.getElementById('main-content');
+    const savedScrollTop = contentContainer ? contentContainer.scrollTop : 0;
+    card.outerHTML = renderQuizComponent(qid, config.question, config.options, config.correctIndex, config.explanation);
+    if (contentContainer) contentContainer.scrollTop = savedScrollTop;
   }
+
+  window.selectQuizOption = function(qid, idx) {
+    if (!quizStates[qid]) quizStates[qid] = { submitted: false, selected: null };
+    if (quizStates[qid].submitted) return;
+    quizStates[qid].selected = idx;
+    refreshQuizCard(qid);
+  }
+
   window.submitQuiz = function(qid) {
-    if (!quizStates[qid]) return;
+    if (!quizStates[qid] || quizStates[qid].selected === null || quizStates[qid].selected === undefined) return;
     quizStates[qid].submitted = true;
-    renderMainContent();
+    refreshQuizCard(qid);
   }
   
+  window.completeModule = function() {
+    const contentContainer = document.getElementById('main-content');
+    document.getElementById('breadcrumb-module').textContent = appData.modules[activeModuleId].title;
+    document.getElementById('breadcrumb-section').textContent = 'Module Complete';
+    document.getElementById('header-step-index').textContent = String(appData.modules[activeModuleId].sections.length).padStart(2,'0');
+    document.getElementById('header-step-total').textContent = String(appData.modules[activeModuleId].sections.length).padStart(2,'0');
+    document.getElementById('sidebar-progress-text').textContent = `${appData.modules[activeModuleId].sections.length} / ${appData.modules[activeModuleId].sections.length}`;
+    document.getElementById('sidebar-progress-bar').style.width = '100%';
+
+    contentContainer.innerHTML = `
+      <div class="max-w-4xl mx-auto slide-up">
+        <section class="hero-panel rounded-[28px] p-8 md:p-10 text-white overflow-hidden relative">
+          <div class="relative z-10 text-center max-w-2xl mx-auto">
+            <div class="w-20 h-20 rounded-full bg-white/15 border border-white/20 mx-auto flex items-center justify-center mb-5">
+              <span class="material-symbols-outlined text-5xl">verified</span>
+            </div>
+            <div class="text-xs uppercase tracking-[0.26em] text-blue-100 font-bold mb-3">CIDP Clinical Needs Assessment</div>
+            <h1 class="text-3xl md:text-4xl font-extrabold mb-4 leading-tight">Module Complete</h1>
+            <p class="text-blue-100/95 text-base md:text-lg leading-relaxed">You have completed the CIDP track covering diagnostic delays, newer treatment options, objective monitoring, and applied case interpretation.</p>
+          </div>
+        </section>
+
+        <div class="section-card rounded-3xl p-6 md:p-7 mt-6">
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div class="rounded-2xl bg-blue-50 border border-blue-100 p-4">
+              <div class="text-xs uppercase tracking-[0.18em] text-blue-700 font-bold mb-1">Section 1</div>
+              <div class="font-bold text-slate-900">Diagnostic Delays</div>
+            </div>
+            <div class="rounded-2xl bg-blue-50 border border-blue-100 p-4">
+              <div class="text-xs uppercase tracking-[0.18em] text-blue-700 font-bold mb-1">Section 2</div>
+              <div class="font-bold text-slate-900">Newer Treatment Options</div>
+            </div>
+            <div class="rounded-2xl bg-blue-50 border border-blue-100 p-4">
+              <div class="text-xs uppercase tracking-[0.18em] text-blue-700 font-bold mb-1">Section 3</div>
+              <div class="font-bold text-slate-900">Objective Monitoring</div>
+            </div>
+          </div>
+
+          <div class="mt-6 flex flex-wrap justify-center gap-3">
+            <button onclick="navigateTo('cidp', 'case-david')" class="px-5 py-3 rounded-xl border border-slate-200 bg-white text-slate-700 font-semibold hover:bg-slate-50 transition flex items-center gap-2">
+              <span class="material-symbols-outlined">arrow_back</span> Back to Final Case
+            </button>
+            <button onclick="navigateTo('cidp', 'diagnosis')" class="bg-blue-600 text-white px-6 py-3 rounded-xl font-semibold hover:bg-blue-700 transition flex items-center gap-2 shadow-md">
+              Restart Module <span class="material-symbols-outlined">restart_alt</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    `;
+    contentContainer.scrollTop = 0;
+  };
+
   document.addEventListener('DOMContentLoaded', () => { renderMainContent(); });
 </script>
 
